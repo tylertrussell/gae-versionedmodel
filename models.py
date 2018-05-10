@@ -4,8 +4,8 @@ import json
 from google.appengine.api.datastore_errors import BadArgumentError
 from google.appengine.ext import db
 
-from common.ext.aetycoon import KeyProperty, PickleProperty
-from common.versioning.constants import (
+from ext.aetycoon import KeyProperty, PickleProperty
+from constants import (
   ERROR_MISSING_VERSION_UNIFIER,
   ERROR_ORPHANED_MODEL, 
   ERROR_WRONG_PARENT_TYPE,
