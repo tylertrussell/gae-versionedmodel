@@ -49,19 +49,22 @@ class VersionUnifier(db.Model):
 
     default_history_info = {
       'event': EVENT_CHANGED_ACTIVE_VERSION,
+      'old_active_version': str(instance.active_version_key),
+      'new_active_version': str(active_version_key),
       'timestamp': datetime.utcnow(),
     }
     if info:
       default_history_info.update(info)
     instance.active_version_history.append(default_history_info)
+
+    if instance.active_version_key:
+      version_becoming_inactive = VersionedModel.get(instance.active_version_key)
+      version_becoming_inactive.active = False
+      version_becoming_inactive._put()
+
     instance.active_version_key = active_version_key
 
     instance.put()
-
-    if self.active_version_key:
-      version_becoming_inactive = VersionedModel.get(self.active_version_key)
-      version_becoming_inactive.active = False
-      version_becoming_inactive.put()
 
     version_becoming_active = VersionedModel.get(active_version_key)
     version_becoming_active.active = True
@@ -89,24 +92,38 @@ class VersionedModel(db.Model):
       BadArgumentError if the supplied parent is a VersionUnifier
     """
     super(VersionedModel, self).__init__(parent, key_name, _app, _from_entity, **kwargs)
-    if self._parent_key is not None and self._parent_key.kind() == VersionUnifier.kind():
-      raise BadArgumentError('Cannot specify a parent of VersionUnifier')
+    # self._parent_key will be present whether parent is specifeid by entity or
+    # key whereas self._parent is only present if parent is specifeid by entity
     self._feaux_parent_key = self._parent_key
+    if (self._feaux_parent_key and
+        self._feaux_parent_key.parent().kind() == VersionUnifier.kind()):
+      self._feaux_parent_key = self._feaux_parent_key.parent()
     self._parent = None
     self._parent_key = None
 
+  def _reset_entity(self):
+    """ Reset the entity's internal state so that a new version is saved.
+    Also sets `active` to `False`.
+    """
+    self._entity = None
+    self._key = None
+    self._key_name = None
+    self.active = False
+
   def put(self, **kwargs):
-    """ Put a new version of this model to the datastore. If this is a new
+    """ Put a new version of this model to the datastore. Iff this is a new
     model, create a new `VersionUnifier` to track all of its versions. """
     creating_new_model = not self.is_saved()
     if creating_new_model:
       version_unifier_key = VersionUnifier(parent=self._feaux_parent_key).put()
     else:
       version_unifier_key = self.version_unifier_key
+      self._reset_entity()
     self._parent_key = version_unifier_key
     my_key = super(VersionedModel, self).put(**kwargs)
     if creating_new_model:
       self.set_active()
+    return my_key
 
   def _put(self, **kwargs):
     super(VersionedModel, self).put(**kwargs)
@@ -155,26 +172,64 @@ class VersionedModel(db.Model):
     return real_parent_key
 
   def parent(self):
-    """ 
+    """ Get this entity's feaux datastore parent (as opposed to its real parent
+    which is a `VersionUnifier`).
+
     Returns:
-      The feaux datastore parent of this entity. The entity's real parent is
-      a `VersionUnifier` (accessed via `_real_parent` or `_real_parent_key`),
-      but most of the time calling code will just want to access the feaux 
-      parent.
+      Datastore entity. 
+    Raises:
+      Iff parent is `VersionedModel` descendant, the entity is loaded using 
+      `google.appengine.ext.db.get` which can raise exceptions (`KindError`?)
+      if the Parent's Kind is not imported.
+    RPC Cost: 
+      2x fetch-by-key if parent is `VersionedModel` descendant
+      1x fetch-by-key otherwise
     """
-    return self._real_parent().parent()
+    return db.get(self.parent_key())
 
   def parent_key(self):
-    """
+    """ See: `parent`.
     Returns:
       The `db.Key` of this entity's feaux parent.
+    RPC Cost:
+      1x fetch-by-key if parent is `VersionedModel` descendant
+      Free otherwise
     """
-    return self.version_unifier_key.parent()
+    feaux_parent_key = self.version_unifier_key.parent()
+    # if the feaux datatore parent is a `VersionUnifier`, return its active
+    # version's key
+    if feaux_parent_key and feaux_parent_key.kind() == VersionUnifier.kind():
+      version_unifier = VersionUnifier.get(feaux_parent_key)
+      return version_unifier.active_version_key
+    return feaux_parent_key
 
   def set_active(self, info=None):
-    """ Makes this version the active version.
+    """ Transactionally activate this version.
+
     Args:
       info: optional `dict` of info to record with the change
     """
     if self.version_unifier.set_active_version(self.key(), info=info):
-      self.active = True
+      self.active = True  # set value locally if transaction succeeds
+
+  @classmethod
+  def _all(cls, **kwargs):
+    """ The original all() function.
+    Returns:
+      google.appengine.ext.db.Query
+    """
+    return super(VersionedModel, cls).all(**kwargs)
+
+  @classmethod
+  def all(cls, **kwargs):
+    """ When composing datastore queries, only find the active version.
+
+    Note: this may cause required indexes to be different than you might
+    expect.
+
+    Args:
+      **kwargs passed to super
+    Returns:
+      google.appengine.ext.db.Query with an "active=True" filter applied
+    """
+    return cls._all().filter('active', True)

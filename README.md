@@ -11,7 +11,6 @@ entity instead of overwriting it. Consequently new versions must be marked
 ```
 class SimpleEntity(VersionedModel):
   name = db.StringProperty(required=True)
-  value
 
 # create the first version, which automatically becomes "active"
 obj = SimpleEntity(name='foo')
@@ -40,5 +39,35 @@ to add a filter on the `active` property. Thus any indexes you create on
   - name: name
   - name: age
     direction: desc
+```
+
+### Datastore Ancestry
+Every unique versioned entity shares a common `VersionUnifier` parent which
+keeps track of the current version. 
+
+Any version can access its unifier via `version_unifier`. `parent()` returns 
+whatever parent was specified when creating the first version. If the specified 
+parent is another instance of `VersionedModel`, then the active version of that
+entity is returned.
+
+```
+parent_obj = SimpleEntity(name='foo')
+parent_obj.put()
+
+child_obj = SimpleEntity(name='child foo', parent=parent_obj)
+child_obj.put()
+
+""" Real Datastore Ancestry
+- VersionUnifier
+  - SimpleEntity(name='foo')
+  - VersionUnifier
+    - SimpleEntity(name='child foo')
+"""
+
+parent_obj.name = 'foo fighter'
+parent_obj.put()
+parent_obj.set_active()
+
+child_obj.parent()  # foo fighter
 ```
 
