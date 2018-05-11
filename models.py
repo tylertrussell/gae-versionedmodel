@@ -112,7 +112,12 @@ class VersionedModel(db.Model):
 
   def put(self, **kwargs):
     """ Put a new version of this model to the datastore. Iff this is a new
-    model, create a new `VersionUnifier` to track all of its versions. """
+    model, create a new `VersionUnifier` to track all of its versions. 
+    Args:
+      Keyword args passed to super call
+    Returns:
+      `db.Key` for the newly-put version
+    """
     creating_new_model = not self.is_saved()
     if creating_new_model:
       version_unifier_key = VersionUnifier(parent=self._feaux_parent_key).put()
@@ -120,13 +125,14 @@ class VersionedModel(db.Model):
       version_unifier_key = self.version_unifier_key
       self._reset_entity()
     self._parent_key = version_unifier_key
-    my_key = super(VersionedModel, self).put(**kwargs)
+    my_key = self._put(**kwargs)
     if creating_new_model:
       self.set_active()
     return my_key
 
   def _put(self, **kwargs):
-    super(VersionedModel, self).put(**kwargs)
+    """ The original `put` """
+    return super(VersionedModel, self).put(**kwargs)
 
   @property
   def version_unifier(self):
@@ -189,6 +195,7 @@ class VersionedModel(db.Model):
 
   def parent_key(self):
     """ See: `parent`.
+
     Returns:
       The `db.Key` of this entity's feaux parent.
     RPC Cost:
@@ -215,6 +222,7 @@ class VersionedModel(db.Model):
   @classmethod
   def _all(cls, **kwargs):
     """ The original all() function.
+
     Returns:
       google.appengine.ext.db.Query
     """

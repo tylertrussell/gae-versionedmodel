@@ -8,9 +8,10 @@ def setup_cloud_sdk_paths():
   import dev_appserver
   dev_appserver.fix_sys_path()
 
-try:
-  import google
-except ImportError as e:
+import sys
+
+paths_need_setup = not any(['google_appengine' in path for path in sys.path])
+if paths_need_setup:
   setup_cloud_sdk_paths()
 
 from google.appengine.api.datastore_errors import BadArgumentError
