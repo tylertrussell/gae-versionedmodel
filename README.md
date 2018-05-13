@@ -12,7 +12,7 @@ active deliberately via `set_active`.
 class SimpleEntity(VersionedModel):
   name = db.StringProperty(required=True)
 
-# create the first version, which automatically becomes "active"
+# create the first version, which automatically becomes active
 foo = SimpleEntity(name='foo')
 foo.put()
 
