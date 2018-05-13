@@ -4,26 +4,29 @@ Rudimentary versioning system for Google App Engine and Cloud Datastore.
 ## Overview
 User classes inherit from `VersionedModel` to gain automatic versioning. 
 
-Every call to `put` on an existing entity will create a new _version_ of that 
-entity instead of overwriting it. Consequently new versions must be marked
-"active" deliberately via `set_active`.
+Every call to `put` on an existing entity will create a new version of that
+entity instead of overwriting it. Consequently, new versions must be marked
+active deliberately via `set_active`.
 
 ```
 class SimpleEntity(VersionedModel):
   name = db.StringProperty(required=True)
 
 # create the first version, which automatically becomes "active"
-obj = SimpleEntity(name='foo')
-obj.put()
+foo = SimpleEntity(name='foo')
+foo.put()
 
-# editing an existing entity puts a new version instead
-obj.name = 'bar'
-obj.put()
+# editing an existing entity puts a new version
+foo.name = 'bar'
+bar = SimpleEntity.get(foo.put())
 
-# but it won't be returned by queries yet because it's not active
-SimpleEntity.all().filter('name', 'bar').get()  # returns None
+# but it won't be returned by queries until it's not active
+SimpleEntity.all().filter('name', 'bar').get()  # None
 foo.set_active()
-SimpleEntity.all().filter('name', 'bar').get()  # returns obj
+SimpleEntity.all().filter('name', 'bar').get()  # bar
+
+# we can view all versions of any instance, sorted by creation date
+obj.all_versions().fetch(None)  # [foo, bar]
 ```
 
 ### Datastore Indexes

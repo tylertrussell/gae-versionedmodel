@@ -14,10 +14,10 @@ paths_need_setup = not any(['google_appengine' in path for path in sys.path])
 if paths_need_setup:
   setup_cloud_sdk_paths()
 
-from google.appengine.api.datastore_errors import BadArgumentError
-from google.appengine.ext import db, testbed
-
+import time
 import unittest
+
+from google.appengine.ext import db, testbed
 
 from models import VersionedModel, VersionUnifier
 
@@ -47,7 +47,7 @@ class TestVersionedModelQueries(SimpleAppEngineTestCase):
     foo.name = 'foobar'
     foo.put()
 
-    # we should still get 'foo'
+    # we should still get 'foo' from an `all` query
     query_results = SimpleEntity.all().fetch(None)
     self.assertEqual(len(query_results), 1)
     self.assertEqual(query_results[0].name, 'foo')
@@ -57,6 +57,25 @@ class TestVersionedModelQueries(SimpleAppEngineTestCase):
     query_results = SimpleEntity.all().fetch(None)
     self.assertEqual(len(query_results), 1)
     self.assertEqual(query_results[0].name, 'foobar')
+
+  def test_all_versions_query(self):
+    # Create a versioned entity and a bunch of inactive versions
+    first_foo = SimpleEntity.get(SimpleEntity(name='foo-0').put())
+    expected_names = ['foo-0']
+
+    # Store the expected names as we create them
+    for i in range(1, 11):
+      first_foo.name = first_foo.name[:-1] + str(i)
+      first_foo.put()
+      expected_names.append(first_foo.name)
+      # sleep to space out the creation times
+      time.sleep(0.1)
+
+    # We should get all the versions back in the same order (since they were
+    # sorted by creation date)
+    found_names = [foo.name for foo in first_foo.all_versions().fetch(None)]
+    self.assertEqual(expected_names, found_names)
+
 
 
 class TestVersionedModelVersions(SimpleAppEngineTestCase):
@@ -115,19 +134,16 @@ class TestVersionedModelVersions(SimpleAppEngineTestCase):
 
 
 class TestVersionedModelParents(SimpleAppEngineTestCase):
-  """ Creating `VersionedModel`s with specific datastore parents should more
-  or less be the same as with regular `Model`s.
-  """
 
   def test_versioned_model_parent_always_returns_active_version(self):
     foo = SimpleEntity(name='foo')
-    original_key = foo.put()
+    foo.put()
 
     bar = SimpleEntity(name='bar', parent=foo.key())
     bar.put()
 
     foo.name = 'foo2'
-    second_key = foo.put()
+    foo.put()
     foo.set_active()
 
     self.assertEqual(bar.parent().name, 'foo2')

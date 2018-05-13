@@ -4,7 +4,7 @@ import json
 from google.appengine.api.datastore_errors import BadArgumentError
 from google.appengine.ext import db
 
-from ext.aetycoon import KeyProperty, PickleProperty
+from ext.aetycoon import DerivedProperty, KeyProperty, PickleProperty
 from constants import (
   ERROR_MISSING_VERSION_UNIFIER,
   ERROR_ORPHANED_MODEL, 
@@ -78,7 +78,12 @@ class VersionedModel(db.Model):
   and all versions share a common `VersionUnifier` datastore parent.
   """
 
+  # essentially the real parent_key value for this entity
+  version_unifier_key = KeyProperty()
+
+  # to allow queries to only return the active version
   active = db.BooleanProperty(default=False)
+
   created = db.DateTimeProperty(auto_now_add=True)
 
   def __init__(self, parent=None, key_name=None, _app=None, _from_entity=False, **kwargs):
@@ -120,11 +125,11 @@ class VersionedModel(db.Model):
     """
     creating_new_model = not self.is_saved()
     if creating_new_model:
-      version_unifier_key = VersionUnifier(parent=self._feaux_parent_key).put()
+      self.version_unifier_key = VersionUnifier(parent=self._feaux_parent_key).put()
     else:
-      version_unifier_key = self.version_unifier_key
+      self.version_unifier_key = self.version_unifier_key
       self._reset_entity()
-    self._parent_key = version_unifier_key
+    self._parent_key = self.version_unifier_key
     my_key = self._put(**kwargs)
     if creating_new_model:
       self.set_active()
@@ -136,15 +141,6 @@ class VersionedModel(db.Model):
 
   @property
   def version_unifier(self):
-    """ See _real_parent """
-    return self._real_parent()
-
-  @property
-  def version_unifier_key(self):
-    """ See _real_parent_key """
-    return self._real_parent_key()
-
-  def _real_parent(self):
     """
     Returns:
       `VersionUnifier` for this model, which is its real datastore parent.
@@ -153,29 +149,10 @@ class VersionedModel(db.Model):
       kind other than `VersionUnifier`
     RPC Cost: 1 fetch by key
     """
-    real_parent_key = self._real_parent_key()
-    real_parent = VersionUnifier.get(real_parent_key)
-
-    assert real_parent is not None, ERROR_MISSING_VERSION_UNIFIER
-
-    return real_parent
-
-  def _real_parent_key(self):
-    """ 
-    Returns:
-      db.Key of the `VersionUnifier` for this model, which is its real
-      datastore parent.
-    Raises:
-      `AssertionError` if this entity has no parent or it has a parent with a
-      kind other than `VersionUnifier`
-    """
-    real_parent_key = self.key().parent()
-
-    assert real_parent_key is not None, ERROR_OPRHANED_MODEL
-    kind = real_parent_key.kind()
-    assert kind == VersionUnifier.kind(), ERROR_WRONG_PARENT_TYPE % (kind)
-
-    return real_parent_key
+    version_unifier = VersionUnifier.get(self.version_unifier_key)
+    assert version_unifier is not None, ERROR_MISSING_VERSION_UNIFIER
+    assert version_unifier.kind() == VersionUnifier.kind(), ERROR_WRONG_PARENT_TYPE
+    return version_unifier
 
   def parent(self):
     """ Get this entity's feaux datastore parent (as opposed to its real parent
@@ -184,9 +161,8 @@ class VersionedModel(db.Model):
     Returns:
       Datastore entity. 
     Raises:
-      Iff parent is `VersionedModel` descendant, the entity is loaded using 
-      `google.appengine.ext.db.get` which can raise exceptions (`KindError`?)
-      if the Parent's Kind is not imported.
+      The entity is loaded using `google.appengine.ext.db.get` which can raise 
+      exceptions (`KindError`?) if the Parent's Kind is not imported.
     RPC Cost: 
       2x fetch-by-key if parent is `VersionedModel` descendant
       1x fetch-by-key otherwise
@@ -241,3 +217,22 @@ class VersionedModel(db.Model):
       google.appengine.ext.db.Query with an "active=True" filter applied
     """
     return cls._all().filter('active', True)
+
+  def all_versions(self):
+    """ Get a query that will fetch all of the versions of the given instance of
+    VersionedModel, ordered by their ascending creation date.
+
+    This function requires the following datastore index
+
+    kind: VersionedModel
+    properties:
+      - name: version_unifier_key
+        direction: asc
+
+    Args:
+      instance: Any instance of any `VersionedModel` subclass.
+    Returns:
+      google.appengine.ext.db.Query
+    """
+    return (self._all().filter('version_unifier_key', self.version_unifier_key)
+                       .order('created'))
