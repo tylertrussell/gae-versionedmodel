@@ -1,15 +1,17 @@
 from datetime import datetime
-import json
 
-from google.appengine.api.datastore_errors import BadArgumentError
 from google.appengine.ext import db
 
-from ext.aetycoon import DerivedProperty, KeyProperty, PickleProperty
+from ext.aetycoon import KeyProperty, PickleProperty
 from constants import (
   ERROR_MISSING_VERSION_UNIFIER,
-  ERROR_ORPHANED_MODEL, 
   ERROR_WRONG_PARENT_TYPE,
-  EVENT_CHANGED_ACTIVE_VERSION,
+  ERROR_WRONG_VERSION_PARENT,
+  EVENT_TYPE_CHANGED_ACTIVE_VERSION,
+  EVENT_DATA_NEW_ACTIVE_VERSION,
+  EVENT_DATA_OLD_ACTIVE_VERSION,
+  EVENT_DATA_TIMESTAMP,
+  EVENT_KEY,
 )
 
 
@@ -48,10 +50,10 @@ class VersionUnifier(db.Model):
     instance = VersionUnifier.get(self.key())
 
     default_history_info = {
-      'event': EVENT_CHANGED_ACTIVE_VERSION,
-      'old_active_version': str(instance.active_version_key),
-      'new_active_version': str(active_version_key),
-      'timestamp': datetime.utcnow(),
+      EVENT_KEY: EVENT_TYPE_CHANGED_ACTIVE_VERSION,
+      EVENT_DATA_OLD_ACTIVE_VERSION: str(instance.active_version_key),
+      EVENT_DATA_NEW_ACTIVE_VERSION: str(active_version_key),
+      EVENT_DATA_TIMESTAMP: datetime.utcnow(),
     }
     if info:
       default_history_info.update(info)
