@@ -4,7 +4,7 @@ from datetime import datetime
 
 from google.appengine.ext import db
 
-from ext.aetycoon import KeyProperty, PickleProperty
+from versionedmodel_ext.aetycoon import KeyProperty, PickleProperty
 
 
 ERROR_MISSING_VERSION_UNIFIER = 'Missing VersionUnifier datastore entity'
