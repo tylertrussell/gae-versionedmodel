@@ -1,3 +1,3 @@
-[submodule "ext/aetycoon"]
-	path = ext/aetycoon
+[submodule "versionedmodel/ext/aetycoon"]
+	path = versionedmodel/ext/aetycoon
 	url = git@github.com:Arachnid/aetycoon.git

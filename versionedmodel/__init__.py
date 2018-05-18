@@ -1,18 +1,21 @@
+"""Rudimentary versioning system for Google App Engine and Cloud Datastore."""
+
 from datetime import datetime
 
 from google.appengine.ext import db
 
 from ext.aetycoon import KeyProperty, PickleProperty
-from constants import (
-  ERROR_MISSING_VERSION_UNIFIER,
-  ERROR_WRONG_PARENT_TYPE,
-  ERROR_WRONG_VERSION_PARENT,
-  EVENT_TYPE_CHANGED_ACTIVE_VERSION,
-  EVENT_DATA_NEW_ACTIVE_VERSION,
-  EVENT_DATA_OLD_ACTIVE_VERSION,
-  EVENT_DATA_TIMESTAMP,
-  EVENT_KEY,
-)
+
+
+ERROR_MISSING_VERSION_UNIFIER = 'Missing VersionUnifier datastore entity'
+ERROR_WRONG_PARENT_TYPE = 'Expected VersionedModel to have a VersionUnifier parent, but got a %s instead.'
+ERROR_WRONG_VERSION_PARENT = 'The provided datastore key does not correspond to a version of this model.'
+
+EVENT_TYPE_CHANGED_ACTIVE_VERSION = 'changed active version'
+EVENT_DATA_NEW_ACTIVE_VERSION = 'new version'
+EVENT_DATA_TIMESTAMP = 'timestamp'
+EVENT_DATA_OLD_ACTIVE_VERSION = 'old version'
+EVENT_KEY = 'event'
 
 
 class VersionUnifier(db.Model):
@@ -23,7 +26,7 @@ class VersionUnifier(db.Model):
   # datastore key of the active `VersionedModel` entity
   active_version_key = KeyProperty()
 
-  # JSON object containing historical changes to the 
+  # JSON object containing historical changes to the
   active_version_history = PickleProperty(default=[])
 
   @db.transactional
@@ -76,7 +79,7 @@ class VersionUnifier(db.Model):
 
 
 class VersionedModel(db.Model):
-  """ Model with built-in versioning. Each entity represents a single version 
+  """ Model with built-in versioning. Each entity represents a single version
   and all versions share a common `VersionUnifier` datastore parent.
   """
 
@@ -119,7 +122,7 @@ class VersionedModel(db.Model):
 
   def put(self, **kwargs):
     """ Put a new version of this model to the datastore. Iff this is a new
-    model, create a new `VersionUnifier` to track all of its versions. 
+    model, create a new `VersionUnifier` to track all of its versions.
     Args:
       Keyword args passed to super call
     Returns:
@@ -161,11 +164,11 @@ class VersionedModel(db.Model):
     which is a `VersionUnifier`).
 
     Returns:
-      Datastore entity. 
+      Datastore entity.
     Raises:
-      The entity is loaded using `google.appengine.ext.db.get` which can raise 
+      The entity is loaded using `google.appengine.ext.db.get` which can raise
       exceptions (`KindError`?) if the Parent's Kind is not imported.
-    RPC Cost: 
+    RPC Cost:
       2x fetch-by-key if parent is `VersionedModel` descendant
       1x fetch-by-key otherwise
     """

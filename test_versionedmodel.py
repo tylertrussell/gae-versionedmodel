@@ -19,7 +19,7 @@ import unittest
 
 from google.appengine.ext import db, testbed
 
-from models import VersionedModel, VersionUnifier
+from versionedmodel import VersionedModel, VersionUnifier
 
 
 class SimpleAppEngineTestCase(unittest.TestCase):
