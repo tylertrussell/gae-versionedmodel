@@ -1,3 +1,6 @@
 [submodule "versionedmodel/ext/aetycoon"]
 	path = versionedmodel/ext/aetycoon
 	url = git@github.com:Arachnid/aetycoon.git
+[submodule "versionedmodel/versionedmodel_ext/aetycoon"]
+	path = versionedmodel/versionedmodel_ext/aetycoon
+	url = https://github.com/Arachnid/aetycoon
